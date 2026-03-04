@@ -44,9 +44,20 @@ loadmodule %{redis_modules_dir}/rejson.so
 EOF
 
 %build
-# Prepare Cargo environment (Fedora Rust guideline) and point it at ./vendor for offline builds.
+# Prepare vendored cargo config using the helper macro (creates .cargo/config.toml to use ./vendor).
+# This macro does not perform the build, it only configures the env for vendored builds.
 %cargo_prep -v vendor
-%cargo_build --frozen --release
+
+# If the vendor archive included vendor/.cargo/config.toml, copy it into project .cargo
+# so cargo uses the git->vendored mappings even in --frozen offline mode.
+if [ -f vendor/.cargo/config.toml ]; then
+  mkdir -p .cargo
+  cp -a vendor/.cargo/config.toml .cargo/config.toml
+fi
+
+# Build explicitly with cargo so we can pass flags. --frozen forces use of Cargo.lock and vendor only.
+export CARGO_HOME=$PWD/.cargo
+cargo build --frozen --release
 
 %install
 mkdir -p %{buildroot}%{redis_modules_dir}
