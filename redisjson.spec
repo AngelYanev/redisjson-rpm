@@ -1,64 +1,71 @@
-Name:           redis-json
+Name:           redisjson
 Version:        8.6.0
 Release:        0.1%{?dist}
-Summary:        RedisJSON module for Redis (Rust)
+Summary:        JSON data type support module for Redis
 
-# RedisJSON licensing for Redis 8 series is published as tri-license (RSALv2 / SSPLv1 / AGPLv3).
-# Set to match the LICENSE files actually present in your Source0 tarball.
 License:        AGPL-3.0-only AND MIT AND Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause
 URL:            https://github.com/RedisJSON/RedisJSON
 
-# Your GitHub Release assets
 Source0:        https://github.com/AngelYanev/redisjson-fedora/releases/download/v%{version}/redisjson-%{version}.tar.gz
 Source1:        https://github.com/AngelYanev/redisjson-fedora/releases/download/v%{version}/redisjson-vendor-%{version}.tar.gz
+
+%global redis_modules_dir %{_libdir}/redis/modules
+%global redis_confdir    %{_sysconfdir}/redis/modules.d
+%global modso   rejson.so
+%global cfgname redisjson.conf
 
 ExclusiveArch:  %{rust_arches}
 
 BuildRequires:  redis-devel
 BuildRequires:  clang-devel
-
 BuildRequires:  rust
 BuildRequires:  cargo
 BuildRequires:  rust-packaging
 BuildRequires:  cargo-rpm-macros
 
-# Correct Redis module ABI requirement / install conventions
-Requires:       redis(modules_abi)%{?_isa} = %{redis_modules_abi}
+Provides: bundled(crate(common)) = 0.1.0+git.3ff28c8c2987
+Provides: bundled(crate(ijson)) = 0.1.3+git.5676f5929863
+Provides: bundled(crate(redis-module)) = 2.1.3+git.3ff28c8c2987
+Provides: bundled(crate(redis-module-macros)) = 99.99.99+git.3ff28c8c2987
+Provides: bundled(crate(redis-module-macros-internals)) = 99.99.99+git.3ff28c8c2987
+Provides: bundled(crate(redis_json)) = 8.6.0
+
 Supplements:    redis
 
-%global modso   rejson.so
-%global cfgname redis-json.conf
-
 %description
-RedisJSON is a Redis module that implements JSON as a native data type.
+RedisJSON is a Redis module that implements ECMA-404 (JSON) as a native
+data type. It allows storing, querying, and manipulating JSON documents
+within Redis using JSONPath syntax. The module provides atomic operations
+on JSON values, nested key access, and type-aware commands for arrays,
+objects, strings, and numbers.
+
+This package contains the shared library (rejson.so) that can be loaded
+into a Redis server with the MODULE LOAD command or via configuration.
 
 %prep
-# Source0 should untar to redisjson-8.6.0/ (because you used git archive --prefix=redisjson-8.6.0/)
-# -a 1 unpacks Source1 (vendor tarball) into the build tree.
 %autosetup -n redisjson-%{version} -a 1
 
-# Optional: a small config snippet to load the module
 cat > %{cfgname} <<'EOF'
-# RedisJSON
-loadmodule %{redis_modules_dir}/rejson.so
+loadmodule %{redis_modules_dir}/%{modso}
 EOF
 
+#--------------------------------
+# Build module
+#--------------------------------
 %build
-# Prepare vendored cargo config using the helper macro (creates .cargo/config.toml to use ./vendor).
-# This macro does not perform the build, it only configures the env for vendored builds.
+# Prepare vendored cargo config
 %cargo_prep -v vendor
-
-# If the vendor archive included vendor/.cargo/config.toml, copy it into project .cargo
-# so cargo uses the git->vendored mappings even in --frozen offline mode.
 if [ -f vendor/.cargo/config.toml ]; then
   mkdir -p .cargo
   cp -a vendor/.cargo/config.toml .cargo/config.toml
 fi
 
-# Build explicitly with cargo so we can pass flags. --frozen forces use of Cargo.lock and vendor only.
 export CARGO_HOME=$PWD/.cargo
 cargo build --frozen --release
 
+#--------------------------------
+# Install module
+#--------------------------------
 %install
 mkdir -p %{buildroot}%{redis_modules_dir}
 
@@ -75,19 +82,34 @@ else
   exit 1
 fi
 
-# Install module config snippet if redis packaging exposes redis_modules_cfg
-%if 0%{?redis_modules_cfg:1}
-install -Dpm640 %{cfgname} %{buildroot}%{redis_modules_cfg}/%{cfgname}
-%endif
+# install config into buildroot for the -config subpackage
+install -D -m0644 %{cfgname} %{buildroot}%{redis_confdir}/%{cfgname}
+
+# -------------------------
+# -config subpackage (opt-in)
+# -------------------------
+%package -n %{name}-config
+Summary:        Drop-in configuration to auto-load the RedisJSON module
+Group:          System Environment/Daemons
+Requires:       %{name} = %{version}-%{release}
+
+%description -n %{name}-config
+This subpackage installs a drop-in configuration snippet into
+%{redis_confdir}/ that causes Redis to load the RedisJSON
+module automatically on startup.
+
+Install this package for hands-free module activation. If you prefer to
+manage module loading manually (e.g. via MODULE LOAD or your own Redis
+configuration), you do not need this package.
 
 %files
-%license LICENSE* COPYING* NOTICE* 2>/dev/null || true
-%doc README* CHANGELOG* 2>/dev/null || true
+%license LICENSE.txt
+%doc *.md
 %{redis_modules_dir}/%{modso}
-%if 0%{?redis_modules_cfg:1}
-%config(noreplace) %{redis_modules_cfg}/%{cfgname}
-%endif
+
+%files -n %{name}-config
+%config(noreplace) %{redis_confdir}/%{cfgname}
 
 %changelog
 * Mon Mar 02 2026 Angel Yanev <angel.yanev@redis.com> - 8.6.0-0.1
-- Initial COPR test build (vendored Rust deps; bundled provides deferred)
+- Initial package for RedisJSON module
