@@ -1,6 +1,6 @@
 Name:           redisjson
 Version:        8.6.0
-Release:        0.1%{?dist}
+Release:        1%{?dist}
 Summary:        JSON data type support module for Redis
 
 License:        AGPL-3.0-only AND MIT AND Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause
