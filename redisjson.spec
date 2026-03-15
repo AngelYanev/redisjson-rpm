@@ -10,11 +10,11 @@ Source0:        https://github.com/AngelYanev/redisjson-fedora/releases/download
 Source1:        https://github.com/AngelYanev/redisjson-fedora/releases/download/v%{version}/redisjson-vendor-%{version}.tar.gz
 
 %global redis_modules_dir %{_libdir}/redis/modules
-%global redis_confdir    %{_sysconfdir}/redis/modules.d
-%global modso   rejson.so
+%global redis_confdir    %{_sysconfdir}/redis/modules
+%global libname rejson.so
 %global cfgname redisjson.conf
 
-ExclusiveArch:  %{rust_arches}
+ExclusiveArch:  x86_64 aarch64
 
 BuildRequires:  redis-devel
 BuildRequires:  clang-devel
@@ -46,20 +46,26 @@ into a Redis server with the MODULE LOAD command or via configuration.
 %autosetup -n redisjson-%{version} -a 1
 
 cat > %{cfgname} <<'EOF'
-loadmodule %{redis_modules_dir}/%{modso}
+loadmodule %{redis_modules_dir}/%{libname}
 EOF
 
 #--------------------------------
 # Build module
 #--------------------------------
 %build
-# Prepare vendored cargo config
+# Prepare and vendor dependencies using macros, then build
 %cargo_prep -v vendor
+# Ensure cargo uses the provided vendor directory (handles git deps like ijson)
 if [ -f vendor/.cargo/config.toml ]; then
   mkdir -p .cargo
   cp -a vendor/.cargo/config.toml .cargo/config.toml
+else
+  echo "ERROR: Could not find vendor/.cargo/config.toml"
+  exit 1
 fi
-
+# Generate vendor manifest for bundled provides and include as license
+%cargo_vendor_manifest vendor
+# Build with standard release profile using vendored sources, offline
 export CARGO_HOME=$PWD/.cargo
 cargo build --frozen --release
 
@@ -69,45 +75,17 @@ cargo build --frozen --release
 %install
 mkdir -p %{buildroot}%{redis_modules_dir}
 
-# RedisJSON output naming can vary; install whatever was produced into the canonical name.
-if [ -f target/release/rejson.so ]; then
-  install -Dpm755 target/release/rejson.so %{buildroot}%{redis_modules_dir}/%{modso}
-elif [ -f target/release/librejson.so ]; then
-  install -Dpm755 target/release/librejson.so %{buildroot}%{redis_modules_dir}/%{modso}
-elif [ -f target/release/redisjson.so ]; then
-  install -Dpm755 target/release/redisjson.so %{buildroot}%{redis_modules_dir}/%{modso}
-else
-  echo "ERROR: Could not find module .so in target/release"
-  ls -la target/release || true
-  exit 1
-fi
+# Enforce canonical module name
+install -Dpm755 target/release/librejson.so %{buildroot}%{redis_modules_dir}/%{libname}
 
-# install config into buildroot for the -config subpackage
+# install config into buildroot (autoload by default)
 install -D -m0644 %{cfgname} %{buildroot}%{redis_confdir}/%{cfgname}
-
-# -------------------------
-# -config subpackage (opt-in)
-# -------------------------
-%package -n %{name}-config
-Summary:        Drop-in configuration to auto-load the RedisJSON module
-Group:          System Environment/Daemons
-Requires:       %{name} = %{version}-%{release}
-
-%description -n %{name}-config
-This subpackage installs a drop-in configuration snippet into
-%{redis_confdir}/ that causes Redis to load the RedisJSON
-module automatically on startup.
-
-Install this package for hands-free module activation. If you prefer to
-manage module loading manually (e.g. via MODULE LOAD or your own Redis
-configuration), you do not need this package.
 
 %files
 %license LICENSE.txt
+%license cargo-vendor.txt
 %doc *.md
-%{redis_modules_dir}/%{modso}
-
-%files -n %{name}-config
+%{redis_modules_dir}/%{libname}
 %config(noreplace) %{redis_confdir}/%{cfgname}
 
 %changelog
