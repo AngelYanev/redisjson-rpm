@@ -1,22 +1,16 @@
 Name:           redisjson
-Version:        8.6.0
-Release:        21%{?dist}
+Version:        1.0.0
+Release:        1%{?dist}
 Summary:        JSON data type support module for Redis
 
 License:        AGPL-3.0-only AND MIT AND Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause
 URL:            https://github.com/RedisJSON/RedisJSON
 
-# hybrid_vendor: same full crates.io vendor tarball as the default build (bytes must match Cargo.lock checksums).
-# Pruning registry trees and re-copying from Fedora %%{_prefix}/share/cargo/registry breaks ``cargo build --frozen``
-# (Fedora-normalized sources differ from crates.io). Optional smaller-tarball experiments stay in ../scripts/.
-%bcond_with hybrid_vendor
+# Upstream RedisJSON sources and release tarballs (release tag v%{upstream_version}).
+%global upstream_version 8.6.0
 
-Source0:        https://github.com/AngelYanev/redisjson-fedora/releases/download/v%{version}/redisjson-%{version}.tar.gz
-Source1:        https://github.com/AngelYanev/redisjson-fedora/releases/download/v%{version}/redisjson-vendor-%{version}.tar.gz
-%if %{with hybrid_vendor}
-# ``cargo-vendor.txt`` from Cargo.lock instead of ``%%cargo_vendor_manifest`` / ``cargo tree``.
-Source2:        cargo_vendor_txt_from_lock.py
-%endif
+Source0:        https://github.com/AngelYanev/redisjson-fedora/releases/download/v%{upstream_version}/redisjson-%{upstream_version}.tar.gz
+Source1:        https://github.com/AngelYanev/redisjson-fedora/releases/download/v%{upstream_version}/redisjson-vendor-%{upstream_version}.tar.gz
 
 %global redis_modules_dir %{_libdir}/redis/modules
 %global redis_confdir    %{_sysconfdir}/redis/modules
@@ -32,8 +26,102 @@ BuildRequires:  cargo
 BuildRequires:  rust-packaging
 BuildRequires:  cargo-rpm-macros
 
+# Registry crates that Fedora also ships as rust-*-devel (policy / licensing cross-check).
+# The build still uses ``Source1`` vendor offline. Refresh from ``redisJSON-rpm``:
+# ``python3 ../scripts/fedora_crate_audit.py ../RedisJSON/Cargo.lock --out-dir .``
+# then replace the ``rust-*`` block below with ``fedora-buildrequires.inc``.
+# Omit ``rust-nix*`` from %%BuildRequires — COPR/mock often cannot resolve those names; crate ``nix`` is vendored and listed under ``bundled(crate(nix))`` below.
+BuildRequires:  rust-addr2line-devel
+BuildRequires:  rust-adler2-devel
+BuildRequires:  rust-ahash-devel
+BuildRequires:  rust-aho-corasick-devel
+BuildRequires:  rust-autocfg-devel
+BuildRequires:  rust-backtrace-devel
+BuildRequires:  rust-base64-devel
+BuildRequires:  rust-bitflags1-devel
+BuildRequires:  rust-bitvec-devel
+BuildRequires:  rust-block-buffer-devel
+BuildRequires:  rust-bumpalo-devel
+BuildRequires:  rust-cexpr-devel
+BuildRequires:  rust-cfg-if-devel
+BuildRequires:  rust-clang-sys-devel
+BuildRequires:  rust-cpufeatures-devel
+BuildRequires:  rust-crunchy-devel
+BuildRequires:  rust-crypto-common0.1-devel
+BuildRequires:  rust-dashmap5-devel
+BuildRequires:  rust-digest-devel
+BuildRequires:  rust-either-devel
+BuildRequires:  rust-env_logger0.10-devel
+BuildRequires:  rust-equivalent-devel
+BuildRequires:  rust-errno-devel
+BuildRequires:  rust-funty-devel
+BuildRequires:  rust-generic-array-devel
+BuildRequires:  rust-getrandom0.2-devel
+BuildRequires:  rust-getrandom0.3-devel
+BuildRequires:  rust-gimli-devel
+BuildRequires:  rust-glob-devel
+BuildRequires:  rust-half-devel
+BuildRequires:  rust-hashbrown-devel
+BuildRequires:  rust-hashbrown0.13-devel
+BuildRequires:  rust-hashbrown0.14-devel
+BuildRequires:  rust-heck0.4-devel
+BuildRequires:  rust-hex-devel
+BuildRequires:  rust-home-devel
+BuildRequires:  rust-humantime-devel
+BuildRequires:  rust-is-terminal-devel
+BuildRequires:  rust-itertools0.13-devel
+BuildRequires:  rust-lazy_static-devel
+BuildRequires:  rust-lazycell-devel
+BuildRequires:  rust-libloading-devel
+BuildRequires:  rust-linux-raw-sys0.4-devel
+BuildRequires:  rust-lock_api-devel
+BuildRequires:  rust-log-devel
+BuildRequires:  rust-memoffset0.7-devel
+BuildRequires:  rust-minimal-lexical-devel
+BuildRequires:  rust-miniz_oxide-devel
+BuildRequires:  rust-nom7-devel
+BuildRequires:  rust-num-conv-devel
+BuildRequires:  rust-num-traits-devel
+BuildRequires:  rust-object-devel
+BuildRequires:  rust-once_cell-devel
+BuildRequires:  rust-parking_lot_core-devel
+BuildRequires:  rust-paste-devel
+BuildRequires:  rust-peeking_take_while-devel
+BuildRequires:  rust-pin-utils-devel
+BuildRequires:  rust-powerfmt-devel
+BuildRequires:  rust-ppv-lite86-devel
+BuildRequires:  rust-prettyplease-devel
+BuildRequires:  rust-quote0.3-devel
+BuildRequires:  rust-radium-devel
+BuildRequires:  rust-rand-devel
+BuildRequires:  rust-rand_chacha-devel
+BuildRequires:  rust-rand_core-devel
+BuildRequires:  rust-regex-devel
+BuildRequires:  rust-rustc-demangle-devel
+BuildRequires:  rust-rustc-hash1-devel
+BuildRequires:  rust-rustix0.38-devel
+BuildRequires:  rust-rustversion-devel
+BuildRequires:  rust-ryu-devel
+BuildRequires:  rust-scopeguard-devel
+BuildRequires:  rust-serde-devel
+BuildRequires:  rust-serde_bytes-devel
+BuildRequires:  rust-serde_core-devel
+BuildRequires:  rust-serde_derive-devel
+BuildRequires:  rust-sha2-devel
+BuildRequires:  rust-shlex-devel
+BuildRequires:  rust-smallvec-devel
+BuildRequires:  rust-strum_macros0.24-devel
+BuildRequires:  rust-syn1-devel
+BuildRequires:  rust-tap-devel
+BuildRequires:  rust-termcolor-devel
+BuildRequires:  rust-typenum-devel
+BuildRequires:  rust-ucd-trie-devel
+BuildRequires:  rust-version_check-devel
+BuildRequires:  rust-which4-devel
+BuildRequires:  rust-wyz-devel
+
 # Bundled crates: git/path deps, workspace members, and registry versions not in Fedora at this lockfile.
-# With hybrid_vendor, refresh via ../scripts/fedora_crate_audit.py (bundled-provides.inc snippet).
+# Refresh via ``../scripts/fedora_crate_audit.py`` (bundled-provides.inc snippet) when the lockfile changes.
 Provides: bundled(crate(common)) = 0.1.0+git.3ff28c8c2987
 Provides: bundled(crate(ijson)) = 0.1.3+git.5676f5929863
 Provides: bundled(crate(redis-module)) = 2.1.3+git.3ff28c8c2987
@@ -41,6 +129,8 @@ Provides: bundled(crate(redis-module-macros)) = 99.99.99+git.3ff28c8c2987
 Provides: bundled(crate(redis-module-macros-internals)) = 99.99.99+git.3ff28c8c2987
 Provides: bundled(crate(json_path)) = 0.1.0
 Provides: bundled(crate(redis_json)) = 8.6.0
+# Vendored from ``Source1`` only (no ``rust-nix*`` %%BuildRequires; see rust block comment).
+Provides: bundled(crate(nix)) = 0.26.4
 Provides: bundled(crate(bindgen)) = 0.66.1
 Provides: bundled(crate(bitflags)) = 2.10.0
 Provides: bundled(crate(bson)) = 2.15.0
@@ -114,7 +204,7 @@ This package contains the shared library (rejson.so) that can be loaded
 into a Redis server with the MODULE LOAD command or via configuration.
 
 %prep
-%autosetup -n redisjson-%{version} -a 1
+%autosetup -n redisjson-%{upstream_version} -a 1
 
 cat > %{cfgname} <<'EOF'
 loadmodule %{redis_modules_dir}/%{libname}
@@ -132,11 +222,7 @@ else
   echo "ERROR: Could not find vendor/.cargo/config.toml"
   exit 1
 fi
-%if %{with hybrid_vendor}
-python3 %{_sourcedir}/cargo_vendor_txt_from_lock.py .
-%else
 %cargo_vendor_manifest vendor
-%endif
 export CARGO_HOME=$PWD/.cargo
 cargo build --frozen --release
 
@@ -158,27 +244,6 @@ install -D -m0644 %{cfgname} %{buildroot}%{redis_confdir}/%{cfgname}
 %config(noreplace) %{redis_confdir}/%{cfgname}
 
 %changelog
-* Wed Apr 15 2026 Angel Yanev <angel.yanev@redis.com> - 8.6.0-21
-- Hybrid: drop redundant git-cargo append (full ``vendor/.cargo/config.toml`` already defines git sources).
-
-* Wed Apr 15 2026 Angel Yanev <angel.yanev@redis.com> - 8.6.0-17
-- Hybrid: restore_vendor_hybrid accepts ``vendor/<name>`` layout (not only ``name-version``).
-
-* Wed Apr 15 2026 Angel Yanev <angel.yanev@redis.com> - 8.6.0-16
-- Hybrid: restore pruned crates from Fedora registry when missing in vendor/; re-include fedora-buildrequires.inc.
-
-* Wed Apr 15 2026 Angel Yanev <angel.yanev@redis.com> - 8.6.0-15
-- Hybrid: cargo-vendor.txt from Cargo.lock (pruned vendor lacks crates cargo tree needs).
-
-* Wed Apr 15 2026 Angel Yanev <angel.yanev@redis.com> - 8.6.0-14
-- Hybrid: drop Fedora merge at %%build (Cargo.lock checksum mismatch); minimal tarball must be prune-only crates.io vendor.
-- Makefile: ``mock`` passes ``--with hybrid_vendor`` to mock.
-
-* Tue Apr 14 2026 Angel Yanev <angel.yanev@redis.com> - 8.6.0-3
-- Inline bundled Provides; drop auxiliary packaging-only files.
-
-* Tue Apr 14 2026 Angel Yanev <angel.yanev@redis.com> - 8.6.0-2
-- Add bundled Provides for crates not covered by Fedora rust-* at lock versions.
-
-* Mon Mar 02 2026 Angel Yanev <angel.yanev@redis.com> - 8.6.0-1
-- Initial package for RedisJSON module
+* Tue Apr 14 2026 Angel Yanev <angel.yanev@redis.com> - 1.0.0-1
+- Development packaging (``Version`` 1.0.0; upstream tarball names use ``%%global upstream_version``). No ``hybrid_vendor`` — ``%%cargo_vendor_manifest vendor`` only.
+- Inline ``rust-*-devel`` %%BuildRequires from ``fedora_crate_audit.py`` (``RedisJSON/Cargo.lock``); omit ``rust-nix*``; ``bundled(crate(nix))`` for vendored ``nix``.
