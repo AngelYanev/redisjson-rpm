@@ -25,9 +25,12 @@ mock: srpm
 copr: srpm
 	copr-cli build @redis/redis $(SRPM)
 
-## Run rpmlint on the spec
+## Run rpmlint on the spec (and built rpms if present) using the shipped rpmlintrc
 lint:
-	rpmlint $(NAME).spec
+	rpmlint -r $(NAME).rpmlintrc --ignore-unused-rpmlintrc $(NAME).spec
+	@if ls $(NAME)-*.rpm >/dev/null 2>&1; then \
+	  rpmlint -r $(NAME).rpmlintrc --ignore-unused-rpmlintrc $(NAME)-*.rpm; \
+	fi
 
 ## Remove generated artefacts
 clean:

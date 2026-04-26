@@ -1,0 +1,4 @@
+# ``rejson`` is the upstream product name and the shipped shared library
+# basename (``rejson.so``); the dictionary-based spell-checker flags it as a
+# misspelling of ``reason``. This is a known false positive.
+addFilter(r"spelling-error.*rejson")

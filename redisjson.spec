@@ -3,22 +3,32 @@ Version:        1.0.0
 Release:        1%{?dist}
 Summary:        JSON data type support module for Redis
 
-License:        AGPL-3.0-only AND MIT AND Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause
+License:        AGPL-3.0-only AND MIT AND Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND ISC AND Zlib AND 0BSD AND BSL-1.0 AND Unicode-DFS-2016 AND Unlicense
 URL:            https://github.com/RedisJSON/RedisJSON
 
-# Upstream RedisJSON sources and release tarballs (release tag v%{upstream_version}).
+# Upstream RedisJSON sources and release tarballs (release tag v plus %%global upstream_version).
 %global upstream_version 8.6.0
 
 Source0:        https://github.com/AngelYanev/redisjson-fedora/releases/download/v%{upstream_version}/redisjson-%{upstream_version}.tar.gz
 Source1:        https://github.com/AngelYanev/redisjson-fedora/releases/download/v%{upstream_version}/redisjson-vendor-%{upstream_version}.tar.gz
+# rpmlintrc filters the ``rejson`` spelling-error false positive (see file for rationale).
+Source2:        %{name}.rpmlintrc
 
 %global redis_modules_dir %{_libdir}/redis/modules
 %global redis_confdir    %{_sysconfdir}/redis/modules
 %global libname rejson.so
 %global cfgname redisjson.conf
+# Cargo ``rpm`` profile artifact (basename under ``%%build``); %%install copies
+# it to ``%%{libname}``. Fedora ``%%cargo_build`` places output under
+# ``target/rpm/`` because it passes ``--profile rpm``.
+%global cargo_profile_dir target/rpm
+%global cargo_shared_lib librejson.so
 
 ExclusiveArch:  x86_64 aarch64
 
+# C/C++ toolchain: required by the ``cc`` and ``bindgen`` crates invoked by ``cargo build``.
+BuildRequires:  gcc
+BuildRequires:  clang
 BuildRequires:  redis-devel
 BuildRequires:  clang-devel
 BuildRequires:  rust
@@ -76,7 +86,6 @@ BuildRequires:  rust-libloading-devel
 BuildRequires:  rust-linux-raw-sys0.4-devel
 BuildRequires:  rust-lock_api-devel
 BuildRequires:  rust-log-devel
-BuildRequires:  rust-memoffset0.7-devel
 BuildRequires:  rust-minimal-lexical-devel
 BuildRequires:  rust-miniz_oxide-devel
 BuildRequires:  rust-nom7-devel
@@ -131,6 +140,8 @@ Provides: bundled(crate(json_path)) = 0.1.0
 Provides: bundled(crate(redis_json)) = 8.6.0
 # Vendored from ``Source1`` only (no ``rust-nix*`` %%BuildRequires; see rust block comment).
 Provides: bundled(crate(nix)) = 0.26.4
+# Vendored from ``Source1`` only (``rust-memoffset0.7-devel`` is not available on rawhide).
+Provides: bundled(crate(memoffset)) = 0.7.1
 Provides: bundled(crate(bindgen)) = 0.66.1
 Provides: bundled(crate(bitflags)) = 2.10.0
 Provides: bundled(crate(bson)) = 2.15.0
@@ -200,8 +211,8 @@ within Redis using JSONPath syntax. The module provides atomic operations
 on JSON values, nested key access, and type-aware commands for arrays,
 objects, strings, and numbers.
 
-This package contains the shared library (rejson.so) that can be loaded
-into a Redis server with the MODULE LOAD command or via configuration.
+This package ships the RedisJSON shared library, loadable into a Redis
+server via the MODULE LOAD command or through server configuration.
 
 %prep
 %autosetup -n redisjson-%{upstream_version} -a 1
@@ -224,7 +235,23 @@ else
 fi
 %cargo_vendor_manifest vendor
 export CARGO_HOME=$PWD/.cargo
-cargo build --frozen --release
+# ``%%cargo_build`` from ``rust-packaging`` builds with ``--profile rpm``;
+# upstream ``Cargo.toml`` does not define one, so alias it to ``release``.
+if ! grep -q '^\[profile\.rpm\]' Cargo.toml; then
+  cat >> Cargo.toml <<'EOF'
+
+[profile.rpm]
+inherits = "release"
+EOF
+fi
+# ``%%cargo_build`` honors ``%%{optflags}``, RUSTFLAGS, and hardening defaults
+# from the Fedora buildroot.
+%cargo_build
+
+%check
+# Upstream tests require a running ``redis-server``; build-time smoke test only:
+# confirm the release shared library exists (same path as %%install source).
+test -x "%{cargo_profile_dir}/%{cargo_shared_lib}"
 
 #--------------------------------
 # Install module
@@ -232,7 +259,7 @@ cargo build --frozen --release
 %install
 mkdir -p %{buildroot}%{redis_modules_dir}
 
-install -Dpm755 target/release/librejson.so %{buildroot}%{redis_modules_dir}/%{libname}
+install -Dpm755 %{cargo_profile_dir}/%{cargo_shared_lib} %{buildroot}%{redis_modules_dir}/%{libname}
 
 install -D -m0644 %{cfgname} %{buildroot}%{redis_confdir}/%{cfgname}
 
@@ -240,10 +267,11 @@ install -D -m0644 %{cfgname} %{buildroot}%{redis_confdir}/%{cfgname}
 %license LICENSE.txt
 %license cargo-vendor.txt
 %doc *.md
+%dir %{redis_modules_dir}
+%dir %{redis_confdir}
 %{redis_modules_dir}/%{libname}
 %config(noreplace) %{redis_confdir}/%{cfgname}
 
 %changelog
-* Tue Apr 14 2026 Angel Yanev <angel.yanev@redis.com> - 1.0.0-1
-- Development packaging (``Version`` 1.0.0; upstream tarball names use ``%%global upstream_version``). No ``hybrid_vendor`` — ``%%cargo_vendor_manifest vendor`` only.
-- Inline ``rust-*-devel`` %%BuildRequires from ``fedora_crate_audit.py`` (``RedisJSON/Cargo.lock``); omit ``rust-nix*``; ``bundled(crate(nix))`` for vendored ``nix``.
+* Thu Apr 23 2026 Angel Yanev <angel.yanev@redis.com> - 1.0.0-1
+- Initial development packaging.
